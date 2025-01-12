@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Gallery</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Reset and basic styles */
+        /* Reset and basic styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        
+        /* Sidebar styling */
+        .sidebar {
+            width: 250px;
+            padding: 20px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+                       
+        }
+
+        .sidebar h2 {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .sidebar ul li {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            word-wrap: break-word; 
+        }
+
+        /* Tag color classes */
+        .tag-blue {
+            color: blue;
+        }
+
+        .tag-purple {
+            color: purple;
+        }
+
+        .tag-green {
+            color: green;
+        }
+
+        .tag-orange {
+            color: orange;
+        }
+
+        .tag-red {
+            color: red;
+        }
+
+        .gallery-container {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .gallery-container h1 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+
+        /* Tag link styling with hover effect */
+        .sidebar ul li a {
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+
+        .sidebar ul li a:hover {
+            text-decoration: underline;
+        }
+
+        .tag-count {
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
+
+        /* Search bar styling */
+        .search-bar {
+            position: relative;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-bar input[type="text"] {
+            padding: 8px;
+            font-size: 1em;
+            width: 92%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .search-bar button {
+            padding: 8px 16px;
+            font-size: 1em;
+            width: 8%;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .search-bar button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Autocomplete dropdown styling */
+        .autocomplete-items {
+            position: absolute;
+            width:100%;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 99;
+            border: 1px solid #ddd;
+            border-top: none;
+            background-color: #fff;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .autocomplete-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .autocomplete-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .suggestion-count {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .autocomplete-active {
+            background-color: #e9e9e9; /* Light grey background */
+            color: #007bff; /* Optional: change text color */
+        }
+        .image-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            max-width: 100%;
+            max-height: 100vh; /* Ensures it won’t exceed the viewport height */
+            overflow: hidden;
+        }
+
+        .image-container img,
+        .image-container video
+         {
+            max-width: 90vw; /* Keeps it within 90% of the viewport width */
+            max-height: 80vh; /* Keeps it within 80% of the viewport height */
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 600px; /* Increased width */
+            text-align: center;
+        }
+
+        .edit-tags-textarea {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .edit-tags-textarea textarea {
+            width: 100%;
+            height: 300px; /* Increased height for comfortable editing */
+            padding: 15px;
+            font-size: 16px;
+            line-height: 1.5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: vertical; /* Allow users to resize if needed */
+            font-family: Arial, sans-serif;
+        }
+
+
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .modal-buttons button[type="submit"] {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .modal-buttons button[type="button"] {
+            background-color: #ccc;
+            color: black;
+        }
+
+        /* Enhanced styles for action buttons */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px; /* Space between buttons */
+            margin-top: 20px;
+        }
+
+        .delete-btn,
+        .edit-btn,
+        .favorite-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+            
+        }
+
+        /* Delete button styling */
+        .delete-btn {
+            background-color: #d9363e;
+            color: white;
+            box-shadow: 0 4px 8px rgb(224, 224, 224);
+        }
+
+        .delete-btn:hover {
+            background-color: white;
+            color: #d9363e;
+            box-shadow: 0 6px 10px rgba(255, 77, 79, 0.6);
+            transform: scale(1.05);
+        }
+
+        /* Edit button styling */
+        .edit-btn {
+            background-color: #0056b3;
+            color: white;
+            box-shadow: 0 4px 8px rgb(224, 224, 224);
+        }
+
+        .edit-btn:hover {
+            background-color: white;
+            color:#0056b3;
+            box-shadow: 0 6px 10px rgba(0, 123, 255, 0.6);
+            transform: scale(1.05);
+        }
+
+        /* Favorite button styling */
+        .favorite-btn {
+            background-color: #F48FB1; /* Soft Pink */
+            color: white;
+            box-shadow: 0 4px 8px rgb(224, 224, 224);
+        }
+
+        .favorite-btn:hover {
+            background-color: white;
+            color: #F48FB1; /* Soft Pink */
+            box-shadow: 0 6px 10px rgba(244, 143, 177, 0.6);
+            transform: scale(1.05);
+        }
+
+        /* Navigation button styling */
+        .nav-btn {
+            background-color: #7CC47C; /* Purple */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-flex; /* Ensures proper alignment of icon and text */
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgb(224, 224, 224);
+            cursor: pointer;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .nav-btn:hover {
+            background-color: white;
+            color: #7CC47C;
+            box-shadow: 0 6px 10px rgba(124, 196, 124, 0.6); /* More prominent shadow */
+            transform: scale(1.05);
+        }
+
+        /* Add spacing between the icon and text */
+        .nav-btn .fa-arrow-left {
+            margin-right: 5px; /* Creates space to the right of the icon */
+        }
+        .nav-btn .fa-arrow-right {
+            margin-left: 5px; /* Creates space to the right of the icon */
+        }
+
+        .image-container video {
+            max-width: 80vw; /* Adjust as per your layout */
+            max-height: 80vh; /* Adjust as per your layout */
+            width: auto;
+            height: auto;
+            object-fit: contain; /* Ensures proper scaling */
+        }
+    </style>
+</head>
+
+<body>
+    <input type="hidden" name="context" value="{{ context }}">
+    <!-- Sidebar with unique tags -->
+    <div id="sidebar" class="sidebar">
+        <h2>Tags</h2>
+        <ul>
+            {% for tag, count, tag_type in image_tags %}
+            <li>
+                {% if tag_type == 0 or tag_type == 2 %}
+                    <a href="/search/{{ tag }}" class="tag-blue">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 3 %}
+                    <a href="/search/{{ tag }}" class="tag-purple">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 4 %}
+                    <a href="/search/{{ tag }}" class="tag-green">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 5 %}
+                    <a href="/search/{{ tag }}" class="tag-orange">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 1 %}
+                    <a href="/search/{{ tag }}" class="tag-red">{{ tag.replace("_"," ") }}</a>
+                {% else %}
+                    <a href="/search/{{ tag }}">{{ tag.replace("_"," ") }}</a>
+                {% endif %}
+                <span class="tag-count">({{ count }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Main content area -->
+    <div class="gallery-container">
+        <div id="header">
+            <h1>Image Gallery</h1>
+
+            <!-- Search Bar -->
+            {% include 'search_bar.html'%}
+        </div>
+
+        <!-- Image Display Section -->
+        {% if mediatype == "image" %}
+        <div class="image-container">
+            <img id="displayImage" src="{{ url_for('static', filename=image_path.split('static/')[-1]) }}" alt="Image" />
+        </div>
+        {% elif mediatype == "video" %}
+        <div class="image-container">
+            <video id="displayImage" src="{{ url_for('static', filename=image_path.split('static/')[-1]) }}" controls alt="video"></video>
+        </div>
+        {% endif %}
+
+        <!-- Delete and Edit Buttons -->
+        <div class="action-buttons">
+            {% if prev_link %}
+            <a href="{{ prev_link }}" class="nav-btn">
+                <i class="fas fa-arrow-left"></i> Previous
+            </a>
+            {% endif %}
+            <button class="delete-btn" onclick="redirectToDelete()">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+            <button class="edit-btn" onclick="showEditPopup()">
+                <i class="fas fa-pen"></i> Edit Tags
+            </button>
+            <button class="favorite-btn" onclick="toggleFavorite()">
+                <i id="favorite-icon" class="fas fa-heart"></i> Favorite
+            </button>
+            {% if next_link %}
+            <a href="{{ next_link }}" class="nav-btn">
+                Next <i class="fas fa-arrow-right"></i>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Edit Tags Modal -->
+        <div id="editTagsModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>Edit Tags</h2>
+                <form id="editTagsForm" method="POST">
+                    <!-- Editable Tag Text Area -->
+                    <div class="edit-tags-textarea">
+                        <textarea id="editTagsTextarea" name="tags" placeholder="Edit tags, separated by spaces..." oninput="fetchSuggestionsForEdit()" spellcheck="false">{% for tag, count, tag_type in image_tags %}{{ tag }} {% endfor %}</textarea>
+                        <div id="autocomplete-edit-list" class="autocomplete-items"></div>
+                    </div>
+                    <!-- Buttons -->
+                    <div class="modal-buttons">
+                        <button type="submit">Save Changes</button>
+                        <button type="button" onclick="closeEditPopup()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+
+    </div>
+
+    <script>
+        let imgPathFromDir = ''
+        // Show the edit tags modal
+        function showEditPopup() {
+            const modal = document.getElementById("editTagsModal");
+            modal.style.display = "flex";
+        }
+
+        // Close the edit tags modal
+        function closeEditPopup() {
+            const modal = document.getElementById("editTagsModal");
+            modal.style.display = "none";
+        }
+
+        // Get the image path (ID) from the current URL
+        function getImagePathFromURL() {
+            const currentURL = window.location.href; // Get the current URL
+            const urlParts = currentURL.split('/'); // Split by '/'
+            
+            // Find the segment after "/result/"
+            const resultIndex = urlParts.indexOf('result');
+            if (resultIndex !== -1 && urlParts[resultIndex + 1]) {
+                const idWithArgs = urlParts[resultIndex + 1]; // Get the ID segment with possible query arguments
+                return idWithArgs.split('?')[0]; // Remove any query parameters and return the ID
+            }
+
+            return null; // Return null if the URL doesn't match the expected structure
+        }
+        
+
+        // Redirect to the delete endpoint with confirmation
+        function redirectToDelete() {
+            const imagePath = getImagePathFromURL(); // Function to retrieve the image path
+
+            // Show a confirmation dialog
+            const userConfirmed = confirm("Are you sure you want to delete this image? This action cannot be undone.");
+
+            // If the user confirms, redirect to the delete endpoint
+            if (userConfirmed) {
+                const previousPage = document.referrer || '/'; // Get the previous page, fallback to '/'
+                window.location.href = `/delete/${encodeURIComponent(imagePath)}?redirect=${encodeURIComponent(previousPage)}`;
+            }
+        }
+
+        // Set form action dynamically for the edit tags modal
+        document.addEventListener("DOMContentLoaded", function () {
+            const imagePath = getImagePathFromURL();
+            const editForm = document.getElementById("editTagsForm");
+            const currentPage = window.location.href || '/';
+            editForm.action = `/edit/${encodeURIComponent(imagePath)}?redirect=${encodeURIComponent(currentPage)}`;
+        });
+        let isFavorited = false;
+
+        function toggleFavorite() {
+            const favoriteButton = document.querySelector(".favorite-btn");
+            const favoriteIcon = document.getElementById("favorite-icon");
+            const imageID = getImagePathFromURL()
+            // Toggle the state
+            isFavorited = !isFavorited;
+
+            if (isFavorited) {
+                // Update to "Remove from Favorites" and solid heart icon
+                favoriteIcon.className = "fas fa-heart"; // Solid heart
+                favoriteButton.innerHTML = `<i id="favorite-icon" class="fas fa-heart"></i> Remove from Favorites`;
+            } else {
+                // Revert to "Favorite" and outline heart icon
+                favoriteIcon.className = "far fa-heart"; // Outline heart
+                favoriteButton.innerHTML = `<i id="favorite-icon" class="far fa-heart"></i> Favorite`;
+            }
+
+            // Send the full image path to the server
+            const endpoint = isFavorited ? "/favorite" : "/unfavorite";
+
+            fetch(endpoint, {
+                method: isFavorited ? "POST" : "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ imageID: imageID }), // Send the full image path in the request body
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        console.error("Failed to update favorite status.");
+                    }
+                })
+                .catch(error => console.error("Error updating favorite status:", error));
+        }
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Get the image path from the display image's `src` attribute
+            const imageID = getImagePathFromURL()
+            const favoriteButton = document.querySelector(".favorite-btn");
+            const favoriteIcon = document.getElementById("favorite-icon");
+
+            // Check if the image is already favorited
+            fetch("/favorite-status", {
+                method: "POST", // Use POST to send the full image path
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ imageID: imageID }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.isFavorited) {
+                        // Set state to favorited
+                        isFavorited = true;
+                        favoriteIcon.className = "fas fa-heart"; // Solid heart
+                        favoriteButton.innerHTML = `<i id="favorite-icon" class="fas fa-heart"></i> Remove from Favorites`;
+                    } else {
+                        // Set state to not favorited
+                        isFavorited = false;
+                        favoriteIcon.className = "far fa-heart"; // Outline heart
+                        favoriteButton.innerHTML = `<i id="favorite-icon" class="far fa-heart"></i> Favorite`;
+                    }
+                })
+                .catch(error => console.error("Error fetching favorite status:", error));
+       
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Image Search</title>
+    <!-- Include Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+      integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+      crossorigin="anonymous"
+    />
+    <!-- Add custom styles -->
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background-color: #f2f2f2;
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+      }
+
+      #search-container {
+        width: 100%;
+        margin: 0 auto;
+        text-align: center;
+        position: relative;
+        padding-top: 50px;
+      }
+
+      #search-container h1 {
+        font-size: 48px;
+        font-weight: bold;
+        color: #444;
+        margin-bottom: 30px;
+      }
+
+      #search-form {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 50px;
+      }
+
+      #button-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px; /* Add space between buttons */
+        margin-top: 10px; /* Adjust vertical spacing from input field */
+      }
+
+      #search-btn,
+      #favorites-link {
+        display: inline-block;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 25px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        text-decoration: none; /* Remove underline from the link */
+        transition: background-color 0.2s ease-in-out;
+        text-align: center;
+      }
+
+      #search-btn:hover {
+          background-color: #0069d9;
+      }
+
+      #search-btn:active {
+          transform: translateY(2px);
+      }
+
+      #favorites-link {
+          background-color: #dc3545; /* Red color for the heart button */
+      }
+
+      #favorites-link:hover {
+          background-color: #c82333;
+      }
+
+      #favorites-link:active {
+          transform: translateY(2px);
+      }
+
+      #favorites-link i {
+          margin-right: 5px; /* Add space between icon and text */
+          color: #fff; /* White heart icon on red background */
+      }
+
+      #search-btn {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 25px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      #search-btn:hover {
+        background-color: #0069d9;
+      }
+
+      #search-btn:active {
+        transform: translateY(2px);
+      }
+
+      #search-btn:focus {
+        outline: none;
+      }
+
+      #search-form label {
+        font-size: 24px;
+        font-weight: bold;
+        color: #666;
+        margin-bottom: 20px;
+      }
+
+      #search-form p {
+        font-size: 14px;
+        color: #999;
+        margin-top: 10px;
+        text-align: center;
+      }
+
+      .fa-spin {
+        animation: spin 2s infinite linear;
+      }
+  </style>
+  </head>
+  <body>
+    <div id="search-container">
+        <h1>Image Search</h1>
+        <form id="search-form" onsubmit="handleSubmit(event)">
+          {% include 'search_bar.html' %}
+          <!-- Buttons Container -->
+          <div id="button-container">
+              <!-- Search Button -->
+              <button type="submit" id="search-btn">
+                  <i class="fas fa-search"></i> Search
+              </button>
+              <!-- Favorites Link -->
+              <a href="/favorites" id="favorites-link">
+                  <i class="fas fa-heart"></i> Favorites
+              </a>
+          </div>
+      </form>
+        <h7>
+        <b>Note:</b> When using this program, you can create a OR chain
+        by connecting two or more words with the "|" symbol. These connected
+        words will be stored in an array. If any of the words in the chain
+        are found in the tags of a image, that image will be considered valid
+        and used in the program's results. <b>Additionally</b>, you have the
+        option to exclude certain tags from the search results. To do this,
+        include a "-" sign in front of any word.
+        For example, if you use "-exclude -example", any images with "exclude" or
+        "example" in their tags will be excluded from being displayed.
+        You can also search for your favorites with user:favorites.
+        "*" can be used to make wildcards, this is a valid example "*t*r*e*e*"
+      </h7>
+    </div>
+    
+    <!-- Include jQuery and Bootstrap JS -->
+    <script
+      src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+      integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+      crossorigin="anonymous"
+    ></script>
+    <!-- Add custom script -->
+    <script>
+        // Submit the search form
+        function handleSubmit(event) {
+            event.preventDefault();
+            const searchInput = document.getElementById("searchInput");
+            const query = searchInput.value.trim().replace(/\s+/g, ";");
+
+            if (query) {
+                // Redirect to the search page with the modified query
+                window.location.href = `/search/${encodeURIComponent(query)}/1`;
+            } else {
+                // If input is empty, redirect to the "all" endpoint
+                window.location.href = `/allofthem`;
+            }
+        }
+        </script>
+  </body>
+</html>

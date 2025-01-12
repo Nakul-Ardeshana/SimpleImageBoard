@@ -1,0 +1,40 @@
+count_sidecars.py Explanation:
+This program counts the number of images that have corresponding sidecar files (.txt) in a specified directory.
+How It Works:
+	Directory Definition: The program first checks if static\images exists. If not, it defaults to images.
+	Image Extensions: The valid image types include .jpg, .jpeg, .png, .gif, .bmp, and .tiff.
+	Counting Process:
+		It walks through the directory, checking each file.
+		If the file's extension matches an image type, it constructs the corresponding sidecar path.
+		If the sidecar file exists, it increments the count.
+	How to Customize:
+		Directory Path: Change the directory variable.
+		Image Extensions: Add/remove types in the image_extensions set.
+______________________________________________________________________________________________________________________________________________________________________________________
+create_sidecars.py Explanation
+This program generates sidecar files (.txt) containing tags extracted from image(only jpgs and jpegs) files' IPTC keywords using ExifTool.
+How It Works:
+	Directory and Image Extensions: Same setup as count_sidecars.py.
+	File Discovery:
+		It finds all images without existing sidecar files.
+	Tag Extraction:
+		For each image, it runs ExifTool to extract IPTC keywords.
+		It writes each tag to a new sidecar file, one per line(\n delimeter DO NOT CHANGE THIS).
+	How to Change the Delimiter(ONLY FOR INPUT FILES, I would still recommend for tags to not contain ";" as this is used as a delimeter for the URL):
+		ExifTool Command: Update the delimiter in the ExifTool command:
+			command = f'exiftool -IPTC:Keywords -sep "," "{file_path}"'
+			This changes the delimiter used when extracting tags from the images to a comma (,).
+		Tag Splitting in Python: Adjust the corresponding splitting logic(replacing the ; with nothing is important or there will be errors when trying to display files):
+			for tag in tags.replace(";", "").split(','):
+______________________________________________________________________________________________________________________________________________________________________________________
+uniqueExtensions.py Explanation
+This script lists all unique file types in a directory.
+How It Works:
+	Directory Check: Similar to the other scripts.
+	Extension Collection:
+		It walks through the directory.
+		It extracts the file extensions, converting them to lowercase.
+		It adds them to a set to ensure uniqueness.
+	How to Customize:
+		Directory Path: Modify the directory variable.
+		Extension Filters: Add specific filtering logic inside the loop if needed.

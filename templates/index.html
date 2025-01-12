@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Gallery</title>
+    <style>
+        /* Reset and basic styles */
+        /* Reset and basic styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        /* Sidebar styling */
+        .sidebar {
+            width: 250px;
+            padding: 20px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar h2 {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .sidebar ul li {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Tag color classes */
+        .tag-blue {
+            color: blue;
+        }
+
+        .tag-purple {
+            color: purple;
+        }
+
+        .tag-green {
+            color: green;
+        }
+
+        .tag-orange {
+            color: orange;
+        }
+
+        .tag-red {
+            color: red;
+        }
+
+        /* Tag link styling with hover effect */
+        .sidebar ul li a {
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.2s;
+        }
+
+        .sidebar ul li a:hover {
+            text-decoration: underline;
+        }
+
+        .tag-count {
+            color: #666;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
+
+        /* Gallery styling */
+        .gallery img,
+        .gallery video {
+            max-width: calc(100vw/5);
+            max-height:calc(100vh/5);
+            border-radius: 5px;
+            border: 2px solid transparent;
+            transition: transform 0.2s, border 0.2s;
+        }
+        .gallery video {
+            border: 5px solid blue; 
+        }
+
+        .gallery-container {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .gallery-container h1 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+        /* Pagination styling */
+        .pagination {
+            margin-top: 30px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+        }
+        .pagination a, .pagination span {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .pagination span.current {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .pagination a.disabled {
+            color: #ccc;
+            pointer-events: none;
+            border-color: #eee;
+        }
+        .pagination a:hover:not(.disabled) {
+            background-color: #007bff;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar with unique tags -->
+    <div class="sidebar">
+        <h2>Tags</h2>
+        <ul>
+            {% for tag, count, tag_type in unique_tags %}
+            <li>
+                {% if tag_type == 0 or tag_type == 2 %}
+                    <a href="/search/{{ tag }}" class="tag-blue">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 3 %}
+                    <a href="/search/{{ tag }}" class="tag-purple">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 4 %}
+                    <a href="/search/{{ tag }}" class="tag-green">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 5 %}
+                    <a href="/search/{{ tag }}" class="tag-orange">{{ tag.replace("_"," ") }}</a>
+                {% elif tag_type == 1 %}
+                    <a href="/search/{{ tag }}" class="tag-red">{{ tag.replace("_"," ") }}</a>
+                {% else %}
+                    <a href="/search/{{ tag }}">{{ tag }}</a>
+                {% endif %}
+                <span class="tag-count">({{ count }})</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Main content area -->
+    <div class="gallery-container">
+        <h1>Image Gallery</h1>
+
+        <!-- Search Bar -->
+        {% include 'search_bar.html'%}
+
+        <!-- Image Count Display -->
+        <div class="image-count">
+            Displaying {{ image_data|length }} out of {{ total_images }} images
+        </div>
+        <!-- Gallery Display -->
+        <div class="gallery">
+            {% for image in image_data %}
+            {% if image.mediatype == "image" %}
+                <!-- Display image directly -->
+                <a href="/result/{{ image.ID }}{% if context %}?context={{ context }}{% if query %}&query={{ query }}{% endif %}{% endif %}"><img src="{{ image.image_path }}" alt="Image" title="Tags: {{ ', '.join(image.tags) }}"></a>
+            {% elif image.mediatype == "video" %}
+                <!-- Display video as an image by hiding controls -->
+                <a href="/result/{{ image.ID }}{% if context %}?context={{ context }}{% if query %}&query={{ query }}{% endif %}{% endif %}">
+                    <video src="{{ image.image_path }}" muted preload="metadata" title="Tags: {{ ', '.join(image.tags) }}"></video>
+                </a>
+            {% endif %}
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination Links -->
+        <div class="pagination">
+            {% if query %}
+                <a href="/search/{{ query }}/1" class="{{ 'disabled' if page == 1 else '' }}">« First</a>
+                <a href="/search/{{ query }}/{{ page - 1 }}" class="{{ 'disabled' if page == 1 else '' }}">‹ Prev</a>
+            {% else %}
+                <a href="/allofthem/1" class="{{ 'disabled' if page == 1 else '' }}">« First</a>
+                <a href="/allofthem/{{ page - 1 }}" class="{{ 'disabled' if page == 1 else '' }}">‹ Prev</a>
+            {% endif %}
+
+            {% for p in range(page - 4, page + 5) %}
+                {% if 1 <= p <= total_pages %}
+                    {% if p == page %}
+                        <span class="current">{{ p }}</span>
+                    {% else %}
+                        {% if query %}
+                            <a href="/search/{{ query }}/{{ p }}">{{ p }}</a>
+                        {% else %}
+                            <a href="/allofthem/{{ p }}">{{ p }}</a>
+                        {% endif %}
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+
+            {% if query %}
+                <a href="/search/{{ query }}/{{ page + 1 }}" class="{{ 'disabled' if page == total_pages else '' }}">Next ›</a>
+                <a href="/search/{{ query }}/{{ total_pages }}" class="{{ 'disabled' if page == total_pages else '' }}">Last »</a>
+            {% else %}
+                <a href="/allofthem/{{ page + 1 }}" class="{{ 'disabled' if page == total_pages else '' }}">Next ›</a>
+                <a href="/allofthem/{{ total_pages }}" class="{{ 'disabled' if page == total_pages else '' }}">Last »</a>
+            {% endif %}
+        </div>
+
+    </div>
+</body>
+</html>
