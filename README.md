@@ -74,6 +74,17 @@ project_folder/
 
 ---
 
+## Running Tests
+
+The test suite lives in `tests/` and uses pytest. Tests run against a temporary database, so your real `database/data.db` is never touched.
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+---
+
 ## Demo Video
 Watch the demo video to see the setup and basic launch of the app:
 

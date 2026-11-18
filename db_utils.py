@@ -200,6 +200,25 @@ def fetch_metadata_by_id(image_id):
     return None
 
 
+# Fetch metadata for many image IDs at once, preserving the order of image_ids
+def fetch_metadata_by_ids(image_ids, chunk_size=900):
+    """
+    Batched version of fetch_metadata_by_id: one query per chunk of IDs instead of
+    one query per image. IDs that no longer exist are skipped.
+    chunk_size stays under SQLite's default limit on bound parameters.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    rows_by_id = {}
+    for start in range(0, len(image_ids), chunk_size):
+        chunk = image_ids[start:start + chunk_size]
+        placeholders = ','.join('?' * len(chunk))
+        cursor.execute(f'SELECT id, image_path, tags FROM tags WHERE id IN ({placeholders})', chunk)
+        for row in cursor.fetchall():
+            rows_by_id[row[0]] = {"id": row[0], "image_path": row[1], "tags": row[2].split(", ")}
+    return [rows_by_id[i] for i in image_ids if i in rows_by_id]
+
+
 # Fetch the count for a specific tag
 def fetch_tag_count(tag):
     conn = get_db_connection()
@@ -311,10 +330,8 @@ def search_images_with_conditions(search_query, onlyids=False):
     if cached_image_ids and onlyids:
         return cached_image_ids
     if cached_image_ids:
-        for imgID in cached_image_ids:
-            # Fetch metadata for cached image IDs in batches
-            result_images.append(fetch_metadata_by_id(imgID))
-        return result_images
+        # Fetch metadata for all cached image IDs in batched queries
+        return fetch_metadata_by_ids(cached_image_ids)
 
     # Parse the search query
     conn = get_db_connection()
