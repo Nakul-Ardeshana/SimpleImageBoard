@@ -415,13 +415,8 @@ def result(id):
     elif context == "favorites":
         image_ids = fetch_favorite_image_ids()
     elif context == "search":
-        with open("./database/cached_queries.json", "r") as json_file:
-            cached_searches = json.load(json_file)
-        if(query not in cached_searches):
-            # Fetch matching images using the universal function
-            image_ids = search_images_with_conditions(query,onlyids=True)
-        else:
-            image_ids = cached_searches[query]
+        # Uses the in-memory search cache when this query was already run
+        image_ids = search_images_with_conditions(query, onlyids=True)
     else:
         return "Invalid context", 400
 
