@@ -120,7 +120,10 @@ def read_sidecar_file(sidecar_path):
     except Exception as e:
         logging.error(f"Error reading {sidecar_path}: {e}")
         tags = []
-    return tags.remove("user:favorites")
+    # "user:favorites" is a virtual tag backed by the favorites table, so drop it
+    # from sidecar tags. (list.remove() returned None and raised when the tag was
+    # missing, which made every file fail and a fresh install index 0 images.)
+    return [tag for tag in tags if tag != "user:favorites"]
 
 def process_single_file(args):
     """Process a single file and return the parsed tags."""

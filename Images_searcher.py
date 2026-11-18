@@ -222,48 +222,48 @@ def search(searchTags, page=1):
     # Perform the search using the database
     start_index = (page - 1) * images_per_page
     end_index = start_index + images_per_page
-    search_results = search_images_with_conditions(searchTags, onlyids=False)
-    search_results = [item for item in search_results if item is not None]
-    total_images = len(search_results)
+    # Get the (cached) list of matching IDs, then load metadata only for this page
+    # in one batched query instead of loading every matching image.
+    matching_ids = search_images_with_conditions(searchTags, onlyids=True)
+    total_images = len(matching_ids)
+    search_results = fetch_metadata_by_ids(matching_ids[start_index:end_index])
 
     image_data = []
     images_processed =0
 
-    # Process search results
-    for i, result in enumerate(search_results):
-        # Only process results within the requested page range
-        if start_index <= i < end_index:
-            if os.path.exists("./" + result['image_path'].replace('\\', '/')):
-                file_extension = os.path.splitext(os.path.basename(result["image_path"]))[1].lower()
-                media_type = "image" if file_extension in [".jpg", ".jpeg", ".png", ".gif"] else "video"
+    # Process search results for this page
+    for result in search_results:
+        if os.path.exists("./" + result['image_path'].replace('\\', '/')):
+            file_extension = os.path.splitext(os.path.basename(result["image_path"]))[1].lower()
+            media_type = "image" if file_extension in [".jpg", ".jpeg", ".png", ".gif"] else "video"
 
-                image_data.append({
-                    "image_path": "/" + result['image_path'].replace('\\', '/'),
-                    "tags": result["tags"],
-                    "name": os.path.splitext(os.path.basename(result["image_path"]))[0],
-                    "mediatype": media_type,
-                    "ID": result["id"]
-                })
-                images_processed +=1
-            else:
-                # Referrer check
-                referrer = request.referrer if "request" in globals() else None
-                is_from_result_page = False
-                referrer_id = None
+            image_data.append({
+                "image_path": "/" + result['image_path'].replace('\\', '/'),
+                "tags": result["tags"],
+                "name": os.path.splitext(os.path.basename(result["image_path"]))[0],
+                "mediatype": media_type,
+                "ID": result["id"]
+            })
+            images_processed +=1
+        else:
+            # Referrer check
+            referrer = request.referrer if "request" in globals() else None
+            is_from_result_page = False
+            referrer_id = None
 
-                if referrer:
-                    referrer_path = referrer.split(request.host_url)[-1]
-                    if referrer_path.startswith("result/"):
-                        referrer_parts = referrer_path.split("/")
-                        if len(referrer_parts) > 1:
-                            referrer_id = referrer_parts[1]
-                            is_from_result_page = True
+            if referrer:
+                referrer_path = referrer.split(request.host_url)[-1]
+                if referrer_path.startswith("result/"):
+                    referrer_parts = referrer_path.split("/")
+                    if len(referrer_parts) > 1:
+                        referrer_id = referrer_parts[1]
+                        is_from_result_page = True
 
-                # Only delete if not from corresponding result/<id> page
-                if not (is_from_result_page and referrer_id == str(result['id'])):
-                    print(f"Image does not exist: {result['image_path']}, deleting entry...")
-                    delete_image_by_id(result['id'])
-                    
+            # Only delete if not from corresponding result/<id> page
+            if not (is_from_result_page and referrer_id == str(result['id'])):
+                print(f"Image does not exist: {result['image_path']}, deleting entry...")
+                delete_image_by_id(result['id'])
+                
         if images_processed == images_per_page:
             break
     # Pagination logic
@@ -415,13 +415,8 @@ def result(id):
     elif context == "favorites":
         image_ids = fetch_favorite_image_ids()
     elif context == "search":
-        with open("./database/cached_queries.json", "r") as json_file:
-            cached_searches = json.load(json_file)
-        if(query not in cached_searches):
-            # Fetch matching images using the universal function
-            image_ids = search_images_with_conditions(query,onlyids=True)
-        else:
-            image_ids = cached_searches[query]
+        # Uses the in-memory search cache when this query was already run
+        image_ids = search_images_with_conditions(query, onlyids=True)
     else:
         return "Invalid context", 400
 

@@ -1,20 +1,24 @@
 import sqlite3
 import os
 import re
-import json
+from collections import defaultdict
 
 
 # Define the database file path
 db_file = './database/data.db'
-# Define the path for the JSON cache file
-CACHE_FILE = './database/cached_queries.json'
 
 # Ensure the database directory exists
 os.makedirs(os.path.dirname(db_file), exist_ok=True)
-with open(CACHE_FILE, 'w') as f:
-    json.dump({}, f)
-    
+
+# In-memory cache of search results: query -> list of matching image IDs.
+# Cleared whenever tags, images or favorites change.
 cached_queries = {}
+MAX_CACHED_QUERIES = 200
+
+# In-memory tag index: tag -> set of image IDs, built on the first search and
+# kept up to date by upsert_tags() and delete_image().
+_tag_index = None
+_all_ids = None
 _connection = sqlite3.connect(db_file, check_same_thread=False)
 _connection.execute(f"PRAGMA max_variable_number = 30000")
 
@@ -47,10 +51,45 @@ def initialize_database():
     conn.commit()
 
 def invalidate_stored_queries():
-    global cached_queries
-    cached_queries = {}
-    with open(CACHE_FILE, 'w') as f:
-        json.dump({}, f)
+    cached_queries.clear()
+
+
+def build_tag_index():
+    """(Re)build the in-memory tag index from the tags table."""
+    global _tag_index, _all_ids
+    index = defaultdict(set)
+    all_ids = set()
+    for image_id, tags_string in get_db_connection().execute('SELECT id, tags FROM tags'):
+        all_ids.add(image_id)
+        for tag in tags_string.split(', '):
+            index[tag].add(image_id)
+    _tag_index, _all_ids = index, all_ids
+
+
+def _get_tag_index():
+    if _tag_index is None:
+        build_tag_index()
+    return _tag_index
+
+
+def _index_remove(image_id, tags):
+    if _tag_index is None:
+        return
+    _all_ids.discard(image_id)
+    for tag in tags:
+        ids = _tag_index.get(tag)
+        if ids is not None:
+            ids.discard(image_id)
+            if not ids:
+                del _tag_index[tag]
+
+
+def _index_add(image_id, tags):
+    if _tag_index is None:
+        return
+    _all_ids.add(image_id)
+    for tag in tags:
+        _tag_index[tag].add(image_id)
 
 # Fetch tags and ID for a specific image
 def fetch_tags_with_id(image_path):
@@ -88,6 +127,7 @@ def upsert_tags(image_path, new_tags):
     cursor.execute('SELECT tags FROM tags WHERE image_path = ?', (image_path,))
     result = cursor.fetchone()
     old_tags = set(result[0].split(', ')) if result else set()
+    old_index_tags = result[0].split(', ') if result else []
 
     # Calculate tag differences
     new_tags_set = set(new_tags)
@@ -110,6 +150,12 @@ def upsert_tags(image_path, new_tags):
     ''', (image_path, tags_string))
     conn.commit()
 
+    # Keep the search index in sync
+    cursor.execute('SELECT id FROM tags WHERE image_path = ?', (image_path,))
+    image_id = cursor.fetchone()[0]
+    _index_remove(image_id, old_index_tags)
+    _index_add(image_id, tags_string.split(', '))
+
     
 # Delete a specific image from the database
 def delete_image(image_path):
@@ -130,6 +176,7 @@ def delete_image(image_path):
         
         for tag in tags:
             cursor.execute('UPDATE tag_counts SET count = count - 1 WHERE tag = ?', (tag,))
+        _index_remove(image_id, tags)
 
     # Delete the image record
     cursor.execute('DELETE FROM tags WHERE image_path = ?', (image_path,))
@@ -200,6 +247,25 @@ def fetch_metadata_by_id(image_id):
     return None
 
 
+# Fetch metadata for many image IDs at once, preserving the order of image_ids
+def fetch_metadata_by_ids(image_ids, chunk_size=900):
+    """
+    Batched version of fetch_metadata_by_id: one query per chunk of IDs instead of
+    one query per image. IDs that no longer exist are skipped.
+    chunk_size stays under SQLite's default limit on bound parameters.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    rows_by_id = {}
+    for start in range(0, len(image_ids), chunk_size):
+        chunk = image_ids[start:start + chunk_size]
+        placeholders = ','.join('?' * len(chunk))
+        cursor.execute(f'SELECT id, image_path, tags FROM tags WHERE id IN ({placeholders})', chunk)
+        for row in cursor.fetchall():
+            rows_by_id[row[0]] = {"id": row[0], "image_path": row[1], "tags": row[2].split(", ")}
+    return [rows_by_id[i] for i in image_ids if i in rows_by_id]
+
+
 # Fetch the count for a specific tag
 def fetch_tag_count(tag):
     conn = get_db_connection()
@@ -229,6 +295,7 @@ def delete_tag_count(tag):
 
 # Add an image to favorites
 def add_to_favorites(image_id):
+    invalidate_stored_queries()
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('INSERT OR IGNORE INTO favorites (image_id) VALUES (?)', (image_id,))
@@ -245,6 +312,7 @@ def add_to_favorites(image_id):
 
 # Remove an image from favorites
 def remove_from_favorites(image_id):
+    invalidate_stored_queries()
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('DELETE FROM favorites WHERE image_id = ?', (image_id,))
@@ -267,59 +335,27 @@ def fetch_favorite_image_ids():
     
     return [row[0] for row in results]
 
-def fetch_cached_query_from_json(query, cached_queries):
-    """
-    Fetches cached results for a query from the JSON file.
+def wildcard_to_regex(pattern):
+    """Turn a tag pattern like "*door" or "blue_*" into a regex that must match
+    the whole tag. Everything except * is matched literally."""
+    return re.compile(".*".join(re.escape(part) for part in pattern.split("*")) + r"\Z")
 
-    Args:
-        query (str): The search query.
 
-    Returns:
-        list: A list of image IDs if the query is cached, or None if not found.
-    """
-    return cached_queries, cached_queries.get(query, None)
+def _ids_matching_tag(tag_or_pattern):
+    """Image IDs having the given tag. A pattern with * matches any tag that fits it."""
+    index = _get_tag_index()
+    if "*" not in tag_or_pattern:
+        return index.get(tag_or_pattern, set())
+    regex = wildcard_to_regex(tag_or_pattern)
+    matches = set()
+    for tag, ids in index.items():
+        if regex.match(tag):
+            matches |= ids
+    return matches
 
-def save_query_to_json(query, image_ids, cached_queries):
-    """
-    Saves a query and its results to the JSON cache file.
 
-    Args:
-        query (str): The search query.
-        image_ids (list): The list of matching image IDs.
-    """
-    cached_queries[query] = image_ids
-    with open(CACHE_FILE, 'w') as f:
-        json.dump(cached_queries, f, indent=4)
-    return cached_queries
-
-def search_images_with_conditions(search_query, onlyids=False):
-    global cached_queries
-    """
-    Searches the database for images based on AND, OR, and NOT conditions,
-    utilizing a JSON file for caching results. Supports "user:favorites".
-
-    Args:
-        search_query (str): A string of search tags.
-
-    Returns:
-        list: A list of dictionaries containing image metadata or image IDs.
-    """
-
-    # Check if the query is cached in the JSON file
-    cached_queries, cached_image_ids = fetch_cached_query_from_json(search_query, cached_queries)
-    result_images = []
-    if cached_image_ids and onlyids:
-        return cached_image_ids
-    if cached_image_ids:
-        for imgID in cached_image_ids:
-            # Fetch metadata for cached image IDs in batches
-            result_images.append(fetch_metadata_by_id(imgID))
-        return result_images
-
-    # Parse the search query
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+def _search_ids(search_query):
+    """Return the sorted list of image IDs matching search_query, using the tag index."""
     # Split the search query into conditions
     search_tags = search_query.split(";")
     or_conditions = [term.split("|") for term in search_tags if "|" in term]
@@ -328,85 +364,60 @@ def search_images_with_conditions(search_query, onlyids=False):
         term for term in search_tags if "|" not in term and not term.startswith("-")
     ]
 
-    # Handle user:favorites logic
     favorites_ids = set(fetch_favorite_image_ids())
-    favorites_excluded = False
-    all_images = []
-    # Process user:favorites in different conditions
+    _get_tag_index()
+    result = set(_all_ids)
+
+    # user:favorites as an AND term limits results to favorites;
+    # as an exclude term it removes them.
     if "user:favorites" in and_conditions:
         and_conditions.remove("user:favorites")
-        if favorites_ids:  # Ensure there are favorite IDs to fetch
-            placeholders = ','.join(['?'] * len(favorites_ids))
-            cursor.execute(f"SELECT id, image_path, tags FROM tags WHERE id IN ({placeholders})", tuple(favorites_ids))
-            all_images = cursor.fetchall()
-
+        result &= favorites_ids
     elif "user:favorites" in exclude_conditions:
-        favorites_excluded = True
         exclude_conditions.remove("user:favorites")
-        cursor.execute("SELECT id, image_path, tags FROM tags")
-        all_images = cursor.fetchall()
-    else:
-        cursor.execute("SELECT id, image_path, tags FROM tags")
-        all_images = cursor.fetchall()
+        result -= favorites_ids
 
-    result_images = []
-    for image_id, image_path, tags_string in all_images:
-        tags = tags_string.split(", ")
+    # AND: every term must match (supports * wildcards)
+    for condition in and_conditions:
+        result &= _ids_matching_tag(condition)
+        if not result:
+            return []
 
-        # Apply AND conditions
-        matches_all_and_conditions = True
-        for condition in and_conditions:
-            if "*" in condition:
-                # Handle wildcard matching
-                pattern = re.compile(condition.replace("*", ".*"))
-                if not any(pattern.match(tag) for tag in tags):
-                    matches_all_and_conditions = False
-                    break
-            else:
-                # Exact match
-                if condition not in tags:
-                    matches_all_and_conditions = False
-                    break
+    # OR groups: at least one group must match (exact tags or user:favorites)
+    if or_conditions:
+        or_match = set()
+        for or_group in or_conditions:
+            for tag in or_group:
+                or_match |= favorites_ids if tag == "user:favorites" else _get_tag_index().get(tag, set())
+        result &= or_match
 
-        # Skip this image if AND conditions are not met
-        if not matches_all_and_conditions:
-            continue
+    # NOT: drop images with any excluded tag
+    for exclude_tag in exclude_conditions:
+        result -= _get_tag_index().get(exclude_tag, set())
 
-        # Apply OR conditions
-        if or_conditions:
-            or_match = False
-            for or_group in or_conditions:
-                if "user:favorites" in or_group:
-                    or_group_tags = set(or_group) - {"user:favorites"}
-                    if image_id in favorites_ids or any(tag in tags for tag in or_group_tags):
-                        or_match = True
-                        break
-                elif any(tag in tags for tag in or_group):
-                    or_match = True
-                    break
-            if not or_match:
-                continue
+    return sorted(result)
 
-        # Apply NOT conditions
-        if any(exclude_tag in tags for exclude_tag in exclude_conditions):
-            continue
 
-        # Exclude favorites if specified
-        if favorites_excluded and image_id in favorites_ids:
-            continue
+def search_images_with_conditions(search_query, onlyids=False):
+    """
+    Searches for images based on AND (;), OR (|), and NOT (-) conditions,
+    with * wildcards in AND terms and support for "user:favorites".
+    Results are cached in memory until tags, images or favorites change.
 
-        # Include the image if all conditions are satisfied
-        result_images.append({
-            "id": image_id,
-            "image_path": image_path,
-            "tags": tags
-        })
+    Args:
+        search_query (str): A string of search tags.
+        onlyids (bool): Return only the matching image IDs.
 
-    # Cache the query results in JSON
-    image_ids = [image["id"] for image in result_images]
-    cached_queries = save_query_to_json(search_query, image_ids, cached_queries)
+    Returns:
+        list: A list of dictionaries containing image metadata, or image IDs.
+    """
+    image_ids = cached_queries.get(search_query)
+    if image_ids is None:
+        image_ids = _search_ids(search_query)
+        if len(cached_queries) >= MAX_CACHED_QUERIES:
+            cached_queries.pop(next(iter(cached_queries)))  # drop the oldest entry
+        cached_queries[search_query] = image_ids
+
     if onlyids:
         return image_ids
-    return result_images
-
-
+    return fetch_metadata_by_ids(image_ids)
