@@ -88,7 +88,7 @@ python -m pytest
 ## Demo Video
 Watch the demo video to see the setup and basic launch of the app:
 
-[![SimpleImageBoard Demo](https://img.youtube.com/vi/CdtaZATEQpk/0.jpg)](https://www.youtube.com/watch?v=CdtaZATEQpk)
+[![SimpleImageBoard Demo](https://img.youtube.com/vi/ObZxjT6RHck/0.jpg)](https://youtu.be/ObZxjT6RHck)
 
 ---
 
